@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* optional: nicer focus outline for kids */
+:root {
+  --ring: 3px;
+}
+*:focus {
+  outline: none;
+  box-shadow: 0 0 0 var(--ring) rgba(59, 130, 246, 0.45);
+  border-radius: 0.75rem;
+}
