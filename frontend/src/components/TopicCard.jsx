@@ -2,6 +2,7 @@ import { useState } from "react";
 import { PlayCircle, BookOpen } from "lucide-react";
 
 export default function TopicCard({ topic, onClick }) {
+  console.log(topic);
   const [isHovered, setIsHovered] = useState(false);
 
   const themeStyles = {
@@ -13,7 +14,8 @@ export default function TopicCard({ topic, onClick }) {
 
   // ✅ Safely get first media type
   const firstMedia = topic.media?.[0] || null;
-  const mediaType = firstMedia?.media_type || "narrated";
+  const mediaType =
+    topic.media?.length === 0 ? "narrated" : firstMedia?.media_type;
 
   // ✅ YouTube embed conversion
   const getYouTubeEmbedUrl = (url) => {
@@ -82,11 +84,11 @@ export default function TopicCard({ topic, onClick }) {
         </div>
 
         {/* Play icon overlay on hover */}
-        {isHovered && (
+        {/* {isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition-all duration-500">
             <PlayCircle className="h-14 w-14 text-white opacity-90" />
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Info */}
@@ -98,17 +100,17 @@ export default function TopicCard({ topic, onClick }) {
 
         <div
           className={`inline-flex items-center gap-2 text-xs ${
-            mediaType === "video" || mediaType === "youtube"
+            mediaType === "mp4" || mediaType === "youtube"
               ? "text-blue-600 bg-blue-50 px-2 py-1 rounded-lg"
               : "text-amber-600 bg-amber-50 px-2 py-1 rounded-lg"
           }`}
         >
-          {mediaType === "video" || mediaType === "youtube" ? (
+          {mediaType === "mp4" || mediaType === "youtube" ? (
             <PlayCircle className="h-3 w-3" />
           ) : (
             <BookOpen className="h-3 w-3" />
           )}
-          {mediaType === "video" || mediaType === "youtube"
+          {mediaType === "mp4" || mediaType === "youtube"
             ? "Video"
             : "Narrated"}
         </div>

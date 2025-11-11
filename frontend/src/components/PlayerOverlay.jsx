@@ -1,12 +1,115 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-export default function PlayerOverlay({ topic, onClose, onFinished }) {
-  const [mode] = useState(topic?.mode ?? "video");
-  const [slideIndex, setSlideIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const slides = topic?.narrated?.slides ?? [];
+export default function PlayerOverlay({ topic, onClose }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const audioRef = useRef(null);
 
-  // --- 🧠 YouTube embed helper ---
+  const hasMedia = topic.media && topic.media.length > 0;
+  const mediaType = hasMedia ? topic.media[0].media_type : "narrated";
+  const mediaUrl =
+    hasMedia && mediaType === "mp4"
+      ? topic.media[0].uploaded_file
+      : hasMedia
+      ? topic.media[0].media_url
+      : null;
+
+  const words = topic.description?.split(" ") ?? [];
+
+  const [selectedAnimal, setSelectedAnimal] = useState("cat");
+
+  const animalVoices = {
+    cat: "Mary",
+    dog: "Mike",
+    duck: "Amy",
+    lion: "John",
+  };
+
+  const API_URL = import.meta.env.VITE_API_URL;
+
+  /* ------------------------------
+        FETCH TTS AUDIO
+  ------------------------------ */
+  async function fetchTTS(text, voice = "Mary") {
+    const res = await fetch(`${API_URL}/tts/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice }),
+    });
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    return new Audio(url);
+  }
+
+  /* ------------------------------
+        GENERATE AUDIO BUT DON'T PLAY
+  ------------------------------ */
+  const generateAudio = async () => {
+    if (!topic.description) return;
+
+    setIsLoading(true);
+
+    const text = topic.description;
+    const voice = animalVoices[selectedAnimal];
+
+    try {
+      const newAudio = await fetchTTS(text, voice);
+
+      newAudio.onplay = () => setIsPlaying(true);
+      newAudio.onended = () => setIsPlaying(false);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
+      audioRef.current = newAudio;
+    } catch (err) {
+      console.error("TTS Error:", err);
+    }
+
+    setIsLoading(false);
+  };
+
+  const playDescription = () => {
+    if (audioRef.current) {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const pauseDescription = () => {
+    if (audioRef.current) audioRef.current.pause();
+    setIsPlaying(false);
+  };
+
+  const stopDescription = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+  };
+
+  const restartDescription = async () => {
+    await generateAudio();
+    playDescription();
+  };
+
+  useEffect(() => {
+    if (mediaType === "narrated") {
+      generateAudio();
+    }
+  }, [selectedAnimal, mediaType]);
+
+  useEffect(() => {
+    return () => stopDescription();
+  }, []);
+
+  /* ------------------------------
+        HELPER: convert YouTube URL to embed
+  ------------------------------ */
   const getYouTubeEmbedUrl = (url, autoplay = true) => {
     if (!url) return null;
     const regex =
@@ -19,131 +122,196 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
       : null;
   };
 
-  useEffect(() => {
-    if (mode !== "narrated" || slides.length === 0 || !isPlaying) return;
-    const timer = setInterval(() => {
-      setSlideIndex((i) => {
-        const next = i + 1;
-        if (next >= slides.length) {
-          clearInterval(timer);
-          setTimeout(() => onFinished?.(), 600);
-          return i;
-        }
-        return next;
-      });
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [mode, slides.length, onFinished, isPlaying]);
-
-  if (!topic) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-3xl bg-white rounded-lg shadow-xl overflow-hidden animate-fadeIn">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900 truncate">
-            {topic.title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            ✕ Close
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+      {/* Floating Cloud Container */}
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-fadeIn border-4 border-yellow-300 relative">
+        {/* Decorative Elements */}
+        <div className="absolute -top-6 -right-6 w-12 h-12 bg-yellow-400 rounded-full opacity-80"></div>
+        <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-pink-400 rounded-full opacity-70"></div>
 
-        {/* Content */}
-        <div className="aspect-video bg-gray-100 relative">
-          {mode === "video" ? (
-            <VideoArea
-              video={topic.media?.[0]}
-              isPlaying={isPlaying}
-              getYouTubeEmbedUrl={getYouTubeEmbedUrl}
-            />
-          ) : (
-            <NarratedArea slides={slides} slideIndex={slideIndex} />
-          )}
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="px-3 py-1.5 bg-emerald-500 text-white text-sm rounded hover:bg-emerald-600 transition"
-            >
-              {isPlaying ? "Pause" : "Play"}
-            </button>
+        {/* Header with Fun Design */}
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4 relative">
+          {/* <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 px-4 py-1 rounded-full border-2 border-white shadow-lg">
+            <span className="text-sm font-bold text-purple-800">
+              🎧 STORY TIME!
+            </span>
+          </div> */}
+          <div className="flex items-center justify-between pt-2">
+            <h2 className="text-xl font-bold text-white text-center flex-1 truncate">
+              {topic.title}
+            </h2>
             <button
               onClick={() => {
-                setSlideIndex(0);
-                setIsPlaying(true);
+                stopDescription();
+                onClose();
               }}
-              className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition"
+              className="ml-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all duration-200 text-white font-bold text-lg shadow-lg"
             >
-              Restart
+              ✕
             </button>
           </div>
+        </div>
 
-          {mode === "narrated" && (
-            <div className="text-xs text-gray-500">
-              {slideIndex + 1} / {slides.length}
+        {/* Content Area */}
+        <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto p-8 relative border-b-4 border-yellow-200">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10 rounded-lg">
+              <div className="text-center">
+                <div className="animate-bounce mb-4">
+                  <span className="text-4xl">🎵</span>
+                </div>
+                <p className="text-purple-600 font-bold">Getting ready...</p>
+              </div>
+            </div>
+          )}
+
+          {hasMedia ? (
+            mediaType === "youtube" ? (
+              getYouTubeEmbedUrl(mediaUrl) ? (
+                <div className="w-full h-full rounded-xl overflow-hidden shadow-lg border-4 border-purple-300">
+                  <iframe
+                    className="w-full h-full"
+                    src={getYouTubeEmbedUrl(mediaUrl, true)}
+                    title="YouTube player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <span className="text-6xl mb-4 block">📺</span>
+                  <p className="text-purple-700 font-medium">
+                    Oops! Couldn't load the video
+                  </p>
+                </div>
+              )
+            ) : mediaType === "mp4" ? (
+              <div className="w-full h-full rounded-xl overflow-hidden shadow-lg border-4 border-blue-300">
+                <video
+                  className="w-full h-full"
+                  src={mediaUrl}
+                  controls
+                  autoPlay={topic.media[0]?.autoplay ?? false}
+                />
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <span className="text-6xl mb-4 block">🤔</span>
+                <p className="text-purple-700 font-medium">
+                  This type of media isn't supported yet!
+                </p>
+              </div>
+            )
+          ) : (
+            <div className="text-center">
+              {/* Story Text */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-200 mb-6">
+                <p className="text-lg text-gray-800 leading-relaxed text-center font-medium">
+                  {words.map((word, i) => (
+                    <span
+                      key={i}
+                      className="hover:text-purple-600 transition-colors"
+                    >
+                      {word + " "}
+                    </span>
+                  ))}
+                </p>
+              </div>
+
+              {/* Animal Voice Selector */}
+              <div className="mb-6">
+                <p className="text-purple-700 font-bold mb-4 text-lg">
+                  Choose your narrator! 🎤
+                </p>
+                <div className="flex justify-center gap-3 flex-wrap">
+                  {Object.keys(animalVoices).map((animal) => (
+                    <button
+                      key={animal}
+                      onClick={() => setSelectedAnimal(animal)}
+                      disabled={isLoading}
+                      className={`
+                        px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300 transform hover:scale-105
+                        ${
+                          selectedAnimal === animal
+                            ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg border-2 border-white"
+                            : "bg-white text-gray-700 shadow-md border-2 border-transparent"
+                        } 
+                        ${
+                          isLoading
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:shadow-xl"
+                        }
+                      `}
+                    >
+                      {animal === "cat" && "🐱 Cat"}
+                      {animal === "dog" && "🐶 Dog"}
+                      {animal === "duck" && "🦆 Duck"}
+                      {animal === "lion" && "🦁 Lion"}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
 
-/* 🎬 Handles both YouTube & uploaded video playback */
-function VideoArea({ video, isPlaying, getYouTubeEmbedUrl }) {
-  if (!video)
-    return (
-      <div className="flex items-center justify-center">No video available</div>
-    );
+        {/* Controls for TTS only */}
+        {mediaType === "narrated" && (
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 px-6 py-4 border-t-4 border-green-200">
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() =>
+                  isPlaying ? pauseDescription() : playDescription()
+                }
+                disabled={isLoading || !audioRef.current}
+                className={`
+                  px-6 py-3 rounded-2xl font-bold text-white text-sm shadow-lg transition-all duration-300 transform hover:scale-105
+                  ${
+                    isLoading || !audioRef.current
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-green-500 to-blue-500 hover:shadow-xl"
+                  }
+                `}
+              >
+                {isPlaying ? "⏸️ Pause" : "▶️ Play"}
+              </button>
 
-  const youtubeEmbed =
-    video.media_type === "youtube"
-      ? getYouTubeEmbedUrl(video.media_url, isPlaying)
-      : null;
+              <button
+                onClick={restartDescription}
+                disabled={isLoading}
+                className={`
+                  px-5 py-3 rounded-2xl font-bold text-sm shadow-lg transition-all duration-300 transform hover:scale-105
+                  bg-gradient-to-r from-yellow-400 to-orange-400 text-white
+                  ${
+                    isLoading
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:shadow-xl"
+                  }
+                `}
+              >
+                🔄 Restart
+              </button>
 
-  return youtubeEmbed ? (
-    <iframe
-      src={youtubeEmbed}
-      className="absolute inset-0 w-full h-full"
-      allow="autoplay; encrypted-media"
-      allowFullScreen
-      title="Video Player"
-    />
-  ) : (
-    <video
-      src={video.uploaded_file || video.media_url}
-      className="absolute inset-0 w-full h-full object-cover"
-      autoPlay={isPlaying}
-      controls
-    />
-  );
-}
-
-/* 📖 Narrated mode slides */
-function NarratedArea({ slides, slideIndex }) {
-  const slide = slides[slideIndex];
-  return (
-    <div className="h-full w-full flex items-center justify-center p-6">
-      <div className="text-center">
-        <p className="text-lg text-gray-800 leading-relaxed">{slide?.text}</p>
-        <div className="flex justify-center gap-1 mt-4">
-          {slides.map((_, i) => (
-            <div
-              key={i}
-              className={`w-1.5 h-1.5 rounded-full ${
-                i === slideIndex ? "bg-emerald-500" : "bg-gray-300"
-              }`}
-            />
-          ))}
-        </div>
+              <button
+                onClick={stopDescription}
+                disabled={isLoading}
+                className={`
+                  px-5 py-3 rounded-2xl font-bold text-sm shadow-lg transition-all duration-300 transform hover:scale-105
+                  bg-gradient-to-r from-red-400 to-pink-500 text-white
+                  ${
+                    isLoading
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:shadow-xl"
+                  }
+                `}
+              >
+                ⏹️ Stop
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
