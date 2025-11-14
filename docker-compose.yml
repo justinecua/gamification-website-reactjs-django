@@ -10,7 +10,7 @@ services:
     container_name: frontend
     command: yarn dev
     ports:
-      - "5173:5173"
+      - "5174:5174"
     volumes:
       - ./frontend:/usr/src/app
     networks:
@@ -21,15 +21,15 @@ services:
 
   api:
     build: ./backend
-    container_name: api
-    working_dir: /api
+    container_name: game_api
+    working_dir: /game_api
     command: >
       sh -c "
         python3 manage.py migrate &&
         python3 manage.py runserver 0.0.0.0:${CONTAINER_PORT}
       "
     volumes:
-      - ./backend:/api
+      - ./backend:/game_api
       - ./backend/media:/media
     ports:
       - "${HOST_PORT}:${CONTAINER_PORT}"
