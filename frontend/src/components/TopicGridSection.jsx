@@ -45,7 +45,7 @@ export default function TopicGridSection({ progress, handleOpen }) {
         <h2 className="text-4xl font-bold text-gray-900 mb-4 drop-shadow-sm">
           Explore Learning{" "}
           <span className="bg-gradient-to-r from-yellow-500 to-green-600 bg-clip-text text-transparent">
-            Adventures
+            Topics
           </span>
         </h2>
         <p className="mx-auto text-lg text-gray-800 max-w-3xl leading-relaxed font-medium">
@@ -61,7 +61,7 @@ export default function TopicGridSection({ progress, handleOpen }) {
             key={i}
             className={`flex items-center gap-3 rounded-2xl ${bg} ${border} px-5 py-4 transition-all hover:shadow-xl hover:scale-105`}
           >
-            <span className="text-2xl">{label.split(" – ")[0]}</span>
+            <span className="text-1xl font-bold">{label.split(" – ")[0]}</span>
             <span className="text-base font-bold text-gray-800">
               {label.split(" – ")[1]}
             </span>
@@ -114,8 +114,7 @@ export default function TopicGridSection({ progress, handleOpen }) {
                 Amazing Progress!
               </h3>
               <p className="text-amber-800 font-medium text-lg">
-                You've completed {progress} adventure{progress !== 1 ? "s" : ""}
-                ! 🎉
+                You've completed {progress} Topic{progress !== 1 ? "s" : ""}! 🎉
               </p>
             </div>
           </div>

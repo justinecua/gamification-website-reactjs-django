@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { loginUser, logoutUser } from "../api/auth";
-import { createTopic, createMedia, fetchTopics } from "../api/topics";
-import DialogBox from "../components/DialogBox"; // ✅ import here
+import {
+  createTopic,
+  createMedia,
+  fetchTopics,
+  updateTopic,
+  deleteTopic,
+  updateMedia,
+} from "../api/topics";
+import DialogBox from "../components/DialogBox";
 
 export default function AdminMock() {
   const [isLoggedIn, setIsLoggedIn] = useState(
@@ -26,7 +33,8 @@ export default function AdminMock() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dialog, setDialog] = useState({ show: false, message: "", type: "" }); // ✅ dialog state
+  const [dialog, setDialog] = useState({ show: false, message: "", type: "" });
+  const [editingTopic, setEditingTopic] = useState(null);
 
   // ───────────────────────────────
   // AUTH
@@ -73,17 +81,29 @@ export default function AdminMock() {
   const handleTopicSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setDialog({ show: false, message: "", type: "" });
 
     try {
-      const topic = await createTopic(topicData);
+      let topic;
 
-      // Upload media if any
-      if (mediaData.media_url || mediaData.uploaded_file) {
+      if (editingTopic) {
+        topic = await updateTopic(editingTopic, topicData);
+      } else {
+        topic = await createTopic(topicData);
+      }
+
+      // ----------------------
+      // MEDIA UPDATE / CREATE
+      // ----------------------
+      if (mediaData.id) {
+        // update existing
+        await updateMedia(mediaData.id, mediaData);
+      } else if (mediaData.media_url || mediaData.uploaded_file) {
+        // create new
         await createMedia({ topic: topic.id, ...mediaData });
       }
 
-      // Reset form
+      // reset
+      setEditingTopic(null);
       setTopicData({
         title: "",
         letter: "",
@@ -97,25 +117,80 @@ export default function AdminMock() {
         uploaded_file: null,
         autoplay: true,
         allow_controls: true,
+        id: null,
       });
 
       loadTopics();
 
-      // ✅ Success dialog
       setDialog({
         show: true,
-        message: "✅ Topic and media saved successfully!",
+        message: editingTopic ? "Topic & Media updated!" : "Topic created!",
         type: "success",
       });
     } catch (err) {
-      console.error(err);
       setDialog({
         show: true,
-        message: `❌ ${err.message || "Failed to save topic"}`,
+        message: err.message || "Error saving topic.",
         type: "error",
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this topic?")) return;
+
+    try {
+      await deleteTopic(id);
+      loadTopics();
+
+      setDialog({
+        show: true,
+        message: "Topic deleted.",
+        type: "success",
+      });
+    } catch (err) {
+      setDialog({
+        show: true,
+        message: "Failed to delete topic.",
+        type: "error",
+      });
+    }
+  };
+
+  const startEditing = (topic) => {
+    setEditingTopic(topic.id);
+
+    setTopicData({
+      title: topic.title,
+      letter: topic.letter,
+      theme: topic.theme,
+      description: topic.description,
+      thumbnail: null,
+    });
+
+    if (topic.media && topic.media.length > 0) {
+      const m = topic.media[0]; // take first media
+
+      setMediaData({
+        media_type: m.media_type,
+        media_url: m.media_url || "",
+        uploaded_file: null,
+        autoplay: m.autoplay,
+        allow_controls: m.allow_controls,
+        id: m.id, // store for editing
+      });
+    } else {
+      // no media
+      setMediaData({
+        media_type: "youtube",
+        media_url: "",
+        uploaded_file: null,
+        autoplay: true,
+        allow_controls: true,
+        id: null,
+      });
     }
   };
 
@@ -243,7 +318,7 @@ export default function AdminMock() {
 
         <textarea
           placeholder="Description"
-          className="w-full border px-3 py-2 rounded-md"
+          className="w-full border px-3 py-2 h-90 rounded-md"
           value={topicData.description}
           onChange={(e) =>
             setTopicData({ ...topicData, description: e.target.value })
@@ -251,16 +326,31 @@ export default function AdminMock() {
           rows={3}
         />
 
-        <div>
-          <label className="text-sm font-medium text-gray-700">
+        <div className="w-full">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
             Thumbnail (optional)
           </label>
-          <input
-            type="file"
-            onChange={(e) =>
-              setTopicData({ ...topicData, thumbnail: e.target.files[0] })
-            }
-          />
+
+          <div className="border border-gray-300 rounded-lg p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer transition">
+            <input
+              type="file"
+              className="w-full text-sm text-gray-700
+                 file:mr-4 file:py-2 file:px-4
+                 file:rounded-md file:border-0
+                 file:text-sm file:font-medium
+                 file:bg-emerald-500 file:text-white
+                 hover:file:bg-emerald-600"
+              onChange={(e) =>
+                setTopicData({ ...topicData, thumbnail: e.target.files[0] })
+              }
+            />
+          </div>
+
+          {topicData.thumbnail && (
+            <p className="text-xs text-gray-500 mt-1">
+              Selected: {topicData.thumbnail.name}
+            </p>
+          )}
         </div>
 
         <hr className="my-4" />
@@ -318,11 +408,32 @@ export default function AdminMock() {
         ) : (
           <ul className="space-y-2">
             {topics.map((t) => (
-              <li key={t.id} className="border p-3 rounded-md">
-                <p className="font-medium text-gray-800">{t.title}</p>
-                <p className="text-sm text-gray-500">
-                  {t.media?.length || 0} media attached
-                </p>
+              <li
+                key={t.id}
+                className="border p-3 rounded-md flex justify-between items-center"
+              >
+                <div>
+                  <p className="font-medium text-gray-800">{t.title}</p>
+                  <p className="text-sm text-gray-500">
+                    {t.media?.length || 0} media attached
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    className="text-blue-600 hover:underline text-sm"
+                    onClick={() => startEditing(t)}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="text-red-600 hover:underline text-sm"
+                    onClick={() => handleDelete(t.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { TOPICS, SECTIONS } from "./mockData";
 import Header from "./components/Header";
 import WelcomeBanner from "./components/WelcomeBanner";
@@ -9,21 +9,48 @@ import Footer from "./components/Footer";
 import AdminMock from "./components/AdminMock";
 import PlayerOverlay from "./components/PlayerOverlay";
 import RewardsOverlay from "./components/RewardsOverlay";
+import { fetchTopics } from "./api/topics";
 
 export default function App() {
+  const [topics, setTopics] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showReward, setShowReward] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState("learn");
+  const stars = useMemo(
+    () => Math.min(progress, topics.length),
+    [progress, topics.length]
+  );
 
-  const stars = useMemo(() => Math.min(progress, 5), [progress]);
+  useEffect(() => {
+    async function loadTopics() {
+      try {
+        const data = await fetchTopics();
+        setTopics(data);
+      } catch (err) {
+        console.error("Failed to fetch topics:", err);
+      }
+    }
+    loadTopics();
+  }, []);
+
+  useEffect(() => {
+    const savedProgress = localStorage.getItem("progress");
+    if (savedProgress !== null) {
+      setProgress(parseInt(savedProgress, 10));
+    }
+  }, []);
 
   const handleOpen = (topic) => setSelected(topic);
   const handleClose = () => setSelected(null);
   const handleFinished = () => {
     setSelected(null);
     setShowReward(true);
-    setProgress((p) => Math.min(p + 1, TOPICS.length));
+
+    const newProgress = Math.min(progress + 1, topics.length);
+    setProgress(newProgress);
+
+    localStorage.setItem("progress", newProgress.toString());
   };
 
   const animatedCharacters = [
@@ -41,6 +68,7 @@ export default function App() {
         stars={stars}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        topics={topics}
       />
       <WelcomeBanner />
 

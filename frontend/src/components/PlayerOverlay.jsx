@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-export default function PlayerOverlay({ topic, onClose }) {
+export default function PlayerOverlay({ topic, onClose, onFinished }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef(null);
@@ -107,6 +107,15 @@ export default function PlayerOverlay({ topic, onClose }) {
     return () => stopDescription();
   }, []);
 
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.onended = () => {
+        setIsPlaying(false);
+        if (onFinished) onFinished();
+      };
+    }
+  }, [audioRef.current]);
+
   /* ------------------------------
         HELPER: convert YouTube URL to embed
   ------------------------------ */
@@ -154,7 +163,11 @@ export default function PlayerOverlay({ topic, onClose }) {
         </div>
 
         {/* Content Area */}
-        <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto p-8 relative border-b-4 border-yellow-200">
+        <div
+          className={`aspect-video bg-gradient-to-br from-blue-50 to-purple-50 p-8 relative border-b-4 border-yellow-200 ${
+            isLoading ? "overflow-hidden" : "overflow-y-auto"
+          }`}
+        >
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10 rounded-lg">
               <div className="text-center">
@@ -194,6 +207,9 @@ export default function PlayerOverlay({ topic, onClose }) {
                   src={mediaUrl}
                   controls
                   autoPlay={topic.media[0]?.autoplay ?? false}
+                  onEnded={() => {
+                    if (onFinished) onFinished();
+                  }}
                 />
               </div>
             ) : (
@@ -312,6 +328,21 @@ export default function PlayerOverlay({ topic, onClose }) {
             </div>
           </div>
         )}
+        {/* Finish Topic Button (always visible) */}
+        <div className="px-6 py-4 border-t-4 border-green-200 flex justify-center">
+          <button
+            onClick={() => {
+              stopDescription(); // stop audio if any
+              if (onFinished) onFinished();
+            }}
+            className="
+      px-8 py-3 bg-green-400 hover:bg-green-500 text-white font-bold rounded-2xl shadow-lg
+      transition-all duration-300 transform hover:scale-105
+    "
+          >
+            Finish Topic
+          </button>
+        </div>
       </div>
     </div>
   );
