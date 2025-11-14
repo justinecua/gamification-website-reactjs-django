@@ -51,3 +51,59 @@ export async function fetchTopics() {
   if (!response.ok) throw new Error("Failed to fetch topics");
   return await response.json();
 }
+
+export const updateTopic = async (id, data) => {
+  const formData = new FormData();
+  for (const key in data) {
+    if (data[key] !== null && data[key] !== undefined) {
+      formData.append(key, data[key]);
+    }
+  }
+
+  const response = await authorizedFetch(`${API_URL}/topics/${id}/`, {
+    method: "PATCH",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Failed to update topic: ${err}`);
+  }
+
+  return await response.json();
+};
+
+export const deleteTopic = async (id) => {
+  const response = await authorizedFetch(`${API_URL}/topics/${id}/`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Failed to delete topic: ${err}`);
+  }
+
+  return true;
+};
+
+export const updateMedia = async (id, data) => {
+  const formData = new FormData();
+
+  for (const key in data) {
+    if (data[key] !== null && data[key] !== undefined) {
+      formData.append(key, data[key]);
+    }
+  }
+
+  const response = await authorizedFetch(`${API_URL}/media/${id}/`, {
+    method: "PATCH",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Failed to update media: ${err}`);
+  }
+
+  return await response.json();
+};

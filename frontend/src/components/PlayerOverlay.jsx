@@ -154,7 +154,11 @@ export default function PlayerOverlay({ topic, onClose }) {
         </div>
 
         {/* Content Area */}
-        <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto p-8 relative border-b-4 border-yellow-200">
+        <div
+          className={`aspect-video bg-gradient-to-br from-blue-50 to-purple-50 p-8 relative border-b-4 border-yellow-200 ${
+            isLoading ? "overflow-hidden" : "overflow-y-auto"
+          }`}
+        >
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10 rounded-lg">
               <div className="text-center">

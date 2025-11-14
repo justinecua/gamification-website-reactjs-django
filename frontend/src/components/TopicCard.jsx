@@ -2,7 +2,6 @@ import { useState } from "react";
 import { PlayCircle, BookOpen } from "lucide-react";
 
 export default function TopicCard({ topic, onClick }) {
-  console.log(topic);
   const [isHovered, setIsHovered] = useState(false);
 
   const themeStyles = {
@@ -12,12 +11,10 @@ export default function TopicCard({ topic, onClick }) {
   };
   const styles = themeStyles[topic.theme] || themeStyles.jungle;
 
-  // ✅ Safely get first media type
   const firstMedia = topic.media?.[0] || null;
   const mediaType =
     topic.media?.length === 0 ? "narrated" : firstMedia?.media_type;
 
-  // ✅ YouTube embed conversion
   const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
     const regex =
@@ -31,7 +28,6 @@ export default function TopicCard({ topic, onClick }) {
   const youtubeEmbed =
     mediaType === "youtube" ? getYouTubeEmbedUrl(firstMedia.media_url) : null;
 
-  // ✅ Fix thumbnail path & fallback
   const thumbnailSrc =
     topic.thumbnail?.startsWith("http") || topic.thumbnail?.startsWith("/")
       ? topic.thumbnail
