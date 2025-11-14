@@ -1,0 +1,46 @@
+---
+#------------------- production -------------------
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    command: yarn dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/usr/src/app
+    networks:
+      - mynetwork
+    restart: always
+    env_file:
+      - ./frontend/.env
+
+  api:
+    build: ./backend
+    container_name: api
+    working_dir: /api
+    command: >
+      sh -c "
+        python3 manage.py migrate &&
+        python3 manage.py runserver 0.0.0.0:${CONTAINER_PORT}
+      "
+    volumes:
+      - ./backend:/api
+      - ./backend/media:/media
+    ports:
+      - "${HOST_PORT}:${CONTAINER_PORT}"
+    networks:
+      - mynetwork
+    restart: always
+    environment:
+      - TZ=Asia/Manila
+    env_file:
+      - ./backend/.env
+
+networks:
+  mynetwork:
+    driver: bridge
