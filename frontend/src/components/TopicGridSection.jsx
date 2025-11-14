@@ -114,8 +114,7 @@ export default function TopicGridSection({ progress, handleOpen }) {
                 Amazing Progress!
               </h3>
               <p className="text-amber-800 font-medium text-lg">
-                You've completed {progress} adventure{progress !== 1 ? "s" : ""}
-                ! 🎉
+                You've completed {progress} Topic{progress !== 1 ? "s" : ""}! 🎉
               </p>
             </div>
           </div>
