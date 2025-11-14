@@ -1,6 +1,12 @@
 import { BookOpen, Settings, Star } from "lucide-react";
 
-export default function Header({ progress, stars, activeTab, setActiveTab }) {
+export default function Header({
+  progress,
+  stars,
+  activeTab,
+  setActiveTab,
+  topics,
+}) {
   return (
     <header className="sticky top-0 z-14 bg-gradient-to-br from-yellow-100 via-green-100 backdrop-blur-lg border-b-4 border-yellow-300 shadow-2xl">
       <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
@@ -14,7 +20,7 @@ export default function Header({ progress, stars, activeTab, setActiveTab }) {
           {progress > 0 && (
             <div className="hidden md:flex items-center gap-3 bg-white rounded-2xl px-4 py-2 shadow-2xl border-2 border-yellow-400">
               <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
+                {[...Array(topics.length)].map((_, i) => (
                   <Star
                     key={i}
                     className={`h-6 w-6 ${
@@ -25,8 +31,9 @@ export default function Header({ progress, stars, activeTab, setActiveTab }) {
                   />
                 ))}
               </div>
+
               <span className="text-sm font-bold text-green-700">
-                {progress}/5 Lessons
+                {progress}/{topics.length} Lessons
               </span>
             </div>
           )}
