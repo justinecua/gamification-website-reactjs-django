@@ -3,7 +3,7 @@
 version: "3.8"
 
 services:
-  frontend:
+  game_frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -19,7 +19,7 @@ services:
     env_file:
       - ./frontend/.env
 
-  api:
+  game_api:
     build: ./backend
     container_name: game_api
     working_dir: /game_api
