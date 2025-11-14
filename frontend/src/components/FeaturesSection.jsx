@@ -5,24 +5,24 @@ export default function FeaturesSection() {
   const features = [
     {
       icon: "🎮",
-      title: "Tap & Play Buttons",
-      text: "Big colorful buttons that make sounds when you tap them! Instant fun for little fingers!",
+      title: "Interactive Buttons",
+      text: "Tap a letter or topic to start learning right away no complex menus, just instant fun!",
       color: "from-yellow-400 to-amber-500",
       bg: "bg-yellow-100",
       border: "border-4 border-yellow-300",
     },
     {
       icon: "🐰",
-      title: "Friendly Animal Friends",
-      text: "Learn with talking animals! Bunny, Bear, and Owl are here to help you discover new things!",
+      title: "Video & Story Mode",
+      text: "Each topic includes an educational video or narrated story with friendly animal voices",
       color: "from-green-400 to-emerald-500",
       bg: "bg-green-100",
       border: "border-4 border-green-300",
     },
     {
       icon: "🏆",
-      title: "Awesome Rewards",
-      text: "Collect stars, unlock special badges, and see happy animations when you learn something new!",
+      title: "Gamified Learning",
+      text: "Celebrate every milestone! Kids earn stars and get cheerful animations after finishing lessons",
       color: "from-blue-400 to-cyan-500",
       bg: "bg-blue-100",
       border: "border-4 border-blue-300",
@@ -37,7 +37,7 @@ export default function FeaturesSection() {
           <span className="bg-gradient-to-r from-yellow-500 to-green-600 bg-clip-text text-transparent">
             PlayLearn
           </span>{" "}
-          So Much Fun?
+          Different?
         </h3>
         <p className="text-lg text-gray-800 max-w-2xl mx-auto font-medium">
           A magical mix of play, storytelling, and discovery that keeps children
