@@ -41,7 +41,13 @@ export default function HeroSection({ animatedCharacters, heroImage }) {
           ))}
         </div>
 
-        <button className="group rounded-2xl bg-gradient-to-r from-yellow-400 to-green-500 px-8 py-4 text-white font-bold animate-pulse">
+        <button
+          onClick={() => {
+            const el = document.getElementById("explore-topics");
+            if (el) el.scrollIntoView({ behavior: "smooth" });
+          }}
+          className="group rounded-2xl bg-gradient-to-r from-yellow-400 to-green-500 px-8 py-4 text-white font-bold animate-pulse"
+        >
           <span className="flex items-center gap-2 text-lg">
             Start Learning Now
             <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
