@@ -3,7 +3,13 @@ import { useState, useEffect, useRef } from "react";
 export default function PlayerOverlay({ topic, onClose, onFinished }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // highlight index for karaoke effect
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+
   const audioRef = useRef(null);
+  const cachedAudioRef = useRef(null);
+  const syncIntervalRef = useRef(null);
 
   const hasMedia = topic.media && topic.media.length > 0;
   const mediaType = hasMedia ? topic.media[0].media_type : "narrated";
@@ -14,73 +20,131 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
       ? topic.media[0].media_url
       : null;
 
+  // split description into words
   const words = topic.description?.split(" ") ?? [];
 
-  const [selectedAnimal, setSelectedAnimal] = useState("cat");
+  // FineVoice voice states
+  const [voices, setVoices] = useState([]);
+  const [voicesLoading, setVoicesLoading] = useState(false);
+  const [voicesError, setVoicesError] = useState(null);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
-  const animalVoices = {
-    cat: "Mary",
-    dog: "Mike",
-    duck: "Amy",
-    lion: "John",
-  };
+  // selected voice ID
+  const [selectedVoiceName, setSelectedVoiceName] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL;
 
   /* ------------------------------
-        FETCH TTS AUDIO
+     LOAD FINEVOICE VOICES
   ------------------------------ */
-  async function fetchTTS(text, voice = "Mary") {
-    const res = await fetch(`${API_URL}/tts/`, {
+  useEffect(() => {
+    if (mediaType !== "narrated") return;
+
+    async function loadVoices() {
+      try {
+        setVoicesLoading(true);
+        setVoicesError(null);
+
+        const res = await fetch(`${API_URL}/tts/finevoice/voices/`);
+        if (!res.ok) throw new Error("Failed to load voices");
+
+        const data = await res.json();
+        const list = data?.voices || [];
+
+        setVoices(list);
+
+        if (!selectedVoiceName && list.length > 0) {
+          setSelectedVoiceName(list[0].name);
+        }
+      } catch (err) {
+        console.error("Voice load error", err);
+        setVoicesError(err.message);
+      } finally {
+        setVoicesLoading(false);
+      }
+    }
+
+    loadVoices();
+  }, [API_URL, mediaType]);
+
+  const filteredVoices = voices.filter((v) => {
+    const q = voiceSearch.toLowerCase();
+    return (
+      v.displayName?.toLowerCase().includes(q) ||
+      v.name?.toLowerCase().includes(q)
+    );
+  });
+
+  const getVoiceLabel = (voice) =>
+    voice.displayName ? voice.displayName : voice.name;
+
+  /* ------------------------------
+     FETCH FINEVOICE AUDIO
+  ------------------------------ */
+  async function fetchFineVoiceTTS(text, voiceName) {
+    const res = await fetch(`${API_URL}/tts/finevoice/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voice }),
+      body: JSON.stringify({ text, voice: voiceName, emotion: "friendly" }),
     });
 
+    if (!res.ok) throw new Error("FineVoice TTS error");
+
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    return new Audio(url);
+    return new Audio(URL.createObjectURL(blob));
   }
 
   /* ------------------------------
-        GENERATE AUDIO BUT DON'T PLAY
+     GENERATE OR USE CACHED AUDIO
   ------------------------------ */
   const generateAudio = async () => {
-    if (!topic.description) return;
-
-    setIsLoading(true);
+    if (!topic.description || !selectedVoiceName) return;
 
     const text = topic.description;
-    const voice = animalVoices[selectedAnimal];
+    const voice = selectedVoiceName;
+
+    // reuse cached audio if text & voice match
+    if (
+      cachedAudioRef.current &&
+      cachedAudioRef.current.text === text &&
+      cachedAudioRef.current.voice === voice
+    ) {
+      audioRef.current = new Audio(cachedAudioRef.current.url);
+      return;
+    }
+
+    if (isLoading) return;
+    setIsLoading(true);
 
     try {
-      const newAudio = await fetchTTS(text, voice);
+      const audio = await fetchFineVoiceTTS(text, voice);
 
-      newAudio.onplay = () => setIsPlaying(true);
-      newAudio.onended = () => setIsPlaying(false);
+      cachedAudioRef.current = {
+        text,
+        voice,
+        url: audio.src,
+      };
 
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-
-      audioRef.current = newAudio;
+      audioRef.current = audio;
     } catch (err) {
-      console.error("TTS Error:", err);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
+  /* ------------------------------
+     AUDIO CONTROL FUNCTIONS
+  ------------------------------ */
   const playDescription = () => {
-    if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
+    if (!audioRef.current) return;
+    audioRef.current.play();
+    setIsPlaying(true);
+    startWordSync();
   };
 
   const pauseDescription = () => {
-    if (audioRef.current) audioRef.current.pause();
+    audioRef.current?.pause();
     setIsPlaying(false);
   };
 
@@ -89,146 +153,146 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+    setHighlightIndex(-1);
     setIsPlaying(false);
+    clearInterval(syncIntervalRef.current);
   };
 
   const restartDescription = async () => {
-    await generateAudio();
+    if (!cachedAudioRef.current) await generateAudio();
+    else audioRef.current = new Audio(cachedAudioRef.current.url);
+
+    setHighlightIndex(0);
     playDescription();
   };
 
-  useEffect(() => {
-    if (mediaType === "narrated") {
-      generateAudio();
-    }
-  }, [selectedAnimal, mediaType]);
+  /* ------------------------------
+     WORD HIGHLIGHT ENGINE
+  ------------------------------ */
+  const startWordSync = () => {
+    clearInterval(syncIntervalRef.current);
 
-  useEffect(() => {
-    return () => stopDescription();
-  }, []);
+    syncIntervalRef.current = setInterval(() => {
+      const audio = audioRef.current;
+      if (!audio || !audio.duration) return;
 
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.onended = () => {
+      const timePerWord = audio.duration / words.length;
+      const index = Math.floor(audio.currentTime / timePerWord);
+
+      if (index !== highlightIndex && index < words.length) {
+        setHighlightIndex(index);
+      }
+
+      if (audio.currentTime >= audio.duration) {
+        clearInterval(syncIntervalRef.current);
+        setHighlightIndex(-1);
         setIsPlaying(false);
-        if (onFinished) onFinished();
-      };
-    }
-  }, [audioRef.current]);
+      }
+    }, 100);
+  };
 
   /* ------------------------------
-        HELPER: convert YouTube URL to embed
+     AUTO GENERATE AUDIO ON VOICE CHANGE
+  ------------------------------ */
+  useEffect(() => {
+    if (mediaType === "narrated" && selectedVoiceName) {
+      generateAudio();
+    }
+  }, [selectedVoiceName, mediaType]);
+
+  /* ------------------------------
+     CLEANUP ON UNMOUNT
+  ------------------------------ */
+  useEffect(() => {
+    return () => {
+      stopDescription();
+      clearInterval(syncIntervalRef.current);
+    };
+  }, []);
+
+  /* ------------------------------
+     YOUTUBE EMBED
   ------------------------------ */
   const getYouTubeEmbedUrl = (url, autoplay = true) => {
     if (!url) return null;
-    const regex =
-      /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
-    return match
-      ? `https://www.youtube.com/embed/${match[1]}?autoplay=${
+    const m = url.match(
+      /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+    );
+    return m
+      ? `https://www.youtube.com/embed/${m[1]}?autoplay=${
           autoplay ? 1 : 0
-        }&mute=0&controls=1&modestbranding=1&rel=0`
+        }&mute=0&controls=1`
       : null;
   };
 
+  /* ------------------------------
+     UI
+  ------------------------------ */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
-      {/* Floating Cloud Container */}
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-fadeIn border-4 border-yellow-300 relative">
-        {/* Decorative Elements */}
-        <div className="absolute -top-6 -right-6 w-12 h-12 bg-yellow-400 rounded-full opacity-80"></div>
-        <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-pink-400 rounded-full opacity-70"></div>
-
-        {/* Header with Fun Design */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4 relative">
-          {/* <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 px-4 py-1 rounded-full border-2 border-white shadow-lg">
-            <span className="text-sm font-bold text-purple-800">
-              🎧 STORY TIME!
-            </span>
-          </div> */}
-          <div className="flex items-center justify-between pt-2">
-            <h2 className="text-xl font-bold text-white text-center flex-1 truncate">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-yellow-300">
+        {/* HEADER */}
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex-1 text-center truncate">
               {topic.title}
             </h2>
+
             <button
               onClick={() => {
                 stopDescription();
                 onClose();
               }}
-              className="ml-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all duration-200 text-white font-bold text-lg shadow-lg"
+              className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white font-bold"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Content Area */}
-        <div
-          className={`aspect-video bg-gradient-to-br from-blue-50 to-purple-50 p-8 relative border-b-4 border-yellow-200 ${
-            isLoading ? "overflow-hidden" : "overflow-y-auto"
-          }`}
-        >
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10 rounded-lg">
+        {/* CONTENT AREA */}
+        <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 p-8 overflow-y-auto relative">
+          {/* LOADING */}
+          {mediaType === "narrated" && (isLoading || voicesLoading) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/75 backdrop-blur-sm">
               <div className="text-center">
-                <div className="animate-bounce mb-4">
-                  <span className="text-4xl">🎵</span>
-                </div>
-                <p className="text-purple-600 font-bold">Getting ready...</p>
+                <div className="animate-bounce mb-4 text-4xl">🎵</div>
+                <p className="text-purple-700 font-bold">
+                  {isLoading ? "Preparing narration…" : "Loading voices…"}
+                </p>
               </div>
             </div>
           )}
 
+          {/* Video or Text */}
           {hasMedia ? (
-            mediaType === "youtube" ? (
-              getYouTubeEmbedUrl(mediaUrl) ? (
-                <div className="w-full h-full rounded-xl overflow-hidden shadow-lg border-4 border-purple-300">
-                  <iframe
-                    className="w-full h-full"
-                    src={getYouTubeEmbedUrl(mediaUrl, true)}
-                    title="YouTube player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <span className="text-6xl mb-4 block">📺</span>
-                  <p className="text-purple-700 font-medium">
-                    Oops! Couldn't load the video
-                  </p>
-                </div>
-              )
+            mediaType === "youtube" && getYouTubeEmbedUrl(mediaUrl) ? (
+              <iframe
+                className="w-full h-full rounded-xl"
+                src={getYouTubeEmbedUrl(mediaUrl)}
+              />
             ) : mediaType === "mp4" ? (
-              <div className="w-full h-full rounded-xl overflow-hidden shadow-lg border-4 border-blue-300">
-                <video
-                  className="w-full h-full"
-                  src={mediaUrl}
-                  controls
-                  autoPlay={topic.media[0]?.autoplay ?? false}
-                  onEnded={() => {
-                    if (onFinished) onFinished();
-                  }}
-                />
-              </div>
+              <video
+                className="w-full h-full rounded-xl"
+                src={mediaUrl}
+                controls
+              />
             ) : (
-              <div className="text-center py-8">
-                <span className="text-6xl mb-4 block">🤔</span>
-                <p className="text-purple-700 font-medium">
-                  This type of media isn't supported yet!
-                </p>
-              </div>
+              <p className="text-center">Unsupported media type.</p>
             )
           ) : (
-            <div className="text-center">
-              {/* Story Text */}
+            <>
+              {/* STORY TEXT WITH HIGHLIGHT */}
               <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-200 mb-6">
-                <p className="text-lg text-gray-800 leading-relaxed text-center font-medium">
+                <p className="text-lg text-gray-800 leading-relaxed text-center">
                   {words.map((word, i) => (
                     <span
                       key={i}
-                      className="hover:text-purple-600 transition-colors"
+                      className={
+                        i === highlightIndex
+                          ? "bg-yellow-300 text-black px-1 rounded"
+                          : ""
+                      }
                     >
                       {word + " "}
                     </span>
@@ -236,109 +300,84 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
                 </p>
               </div>
 
-              {/* Animal Voice Selector */}
+              {/* VOICE SELECTOR */}
               <div className="mb-6">
-                <p className="text-purple-700 font-bold mb-4 text-lg">
-                  Choose your narrator! 🎤
+                <p className="text-purple-700 font-bold text-lg text-center mb-2">
+                  Choose Narrator 🎤
                 </p>
-                <div className="flex justify-center gap-3 flex-wrap">
-                  {Object.keys(animalVoices).map((animal) => (
+
+                <div className="flex justify-center mb-4">
+                  <input
+                    type="text"
+                    value={voiceSearch}
+                    onChange={(e) => setVoiceSearch(e.target.value)}
+                    placeholder="Search voices…"
+                    className="w-full max-w-md px-4 py-2 rounded-2xl border border-purple-300 shadow-sm"
+                  />
+                </div>
+
+                {voicesError && (
+                  <p className="text-center text-red-500">{voicesError}</p>
+                )}
+
+                <div className="flex justify-center gap-3 flex-wrap max-h-60 overflow-y-auto">
+                  {filteredVoices.map((voice) => (
                     <button
-                      key={animal}
-                      onClick={() => setSelectedAnimal(animal)}
-                      disabled={isLoading}
-                      className={`
-                        px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300 transform hover:scale-105
-                        ${
-                          selectedAnimal === animal
-                            ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg border-2 border-white"
-                            : "bg-white text-gray-700 shadow-md border-2 border-transparent"
-                        } 
-                        ${
-                          isLoading
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:shadow-xl"
-                        }
-                      `}
+                      key={voice.name}
+                      onClick={() => setSelectedVoiceName(voice.name)}
+                      className={`px-4 py-2 rounded-2xl font-bold text-sm ${
+                        selectedVoiceName === voice.name
+                          ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg"
+                          : "bg-white text-gray-700 shadow"
+                      }`}
                     >
-                      {animal === "cat" && "🐱 Cat"}
-                      {animal === "dog" && "🐶 Dog"}
-                      {animal === "duck" && "🦆 Duck"}
-                      {animal === "lion" && "🦁 Lion"}
+                      {getVoiceLabel(voice)}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
-        {/* Controls for TTS only */}
+        {/* AUDIO CONTROLS */}
         {mediaType === "narrated" && (
           <div className="bg-gradient-to-r from-green-50 to-blue-50 px-6 py-4 border-t-4 border-green-200">
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-4 flex-wrap">
               <button
                 onClick={() =>
                   isPlaying ? pauseDescription() : playDescription()
                 }
-                disabled={isLoading || !audioRef.current}
-                className={`
-                  px-6 py-3 rounded-2xl font-bold text-white text-sm shadow-lg transition-all duration-300 transform hover:scale-105
-                  ${
-                    isLoading || !audioRef.current
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-green-500 to-blue-500 hover:shadow-xl"
-                  }
-                `}
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-2xl font-bold"
               >
-                {isPlaying ? "⏸️ Pause" : "▶️ Play"}
+                {isPlaying ? "⏸ Pause" : "▶ Play"}
               </button>
 
               <button
                 onClick={restartDescription}
-                disabled={isLoading}
-                className={`
-                  px-5 py-3 rounded-2xl font-bold text-sm shadow-lg transition-all duration-300 transform hover:scale-105
-                  bg-gradient-to-r from-yellow-400 to-orange-400 text-white
-                  ${
-                    isLoading
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:shadow-xl"
-                  }
-                `}
+                className="px-5 py-3 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-2xl font-bold"
               >
                 🔄 Restart
               </button>
 
               <button
                 onClick={stopDescription}
-                disabled={isLoading}
-                className={`
-                  px-5 py-3 rounded-2xl font-bold text-sm shadow-lg transition-all duration-300 transform hover:scale-105
-                  bg-gradient-to-r from-red-400 to-pink-500 text-white
-                  ${
-                    isLoading
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:shadow-xl"
-                  }
-                `}
+                className="px-5 py-3 bg-gradient-to-r from-red-400 to-pink-500 text-white rounded-2xl font-bold"
               >
-                ⏹️ Stop
+                ⏹ Stop
               </button>
             </div>
           </div>
         )}
-        {/* Finish Topic Button (always visible) */}
-        <div className="px-6 py-4 border-t-4 border-green-200 flex justify-center">
+
+        {/* FINISH */}
+        <div className="px-6 py-4 border-t-4 border-green-200 text-center">
           <button
             onClick={() => {
-              stopDescription(); // stop audio if any
-              if (onFinished) onFinished();
+              stopDescription();
+              onFinished?.();
             }}
-            className="
-      px-8 py-3 bg-green-400 hover:bg-green-500 text-white font-bold rounded-2xl shadow-lg
-      transition-all duration-300 transform hover:scale-105
-    "
+            className="px-8 py-3 bg-green-400 text-white rounded-2xl font-bold"
           >
             Finish Topic
           </button>

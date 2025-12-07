@@ -138,3 +138,4 @@ CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 VOICE_RSS_API_KEY = os.getenv("VOICE_RSS_API_KEY")
+FINE_VOICE_API_KEY = os.getenv("FINE_VOICE_API_KEY")
