@@ -319,21 +319,25 @@ export default function AdminMock() {
         <textarea
           placeholder="Description"
           className="w-full border px-3 py-2 h-90 rounded-md"
+          maxLength={3000}
           value={topicData.description}
           onChange={(e) =>
             setTopicData({ ...topicData, description: e.target.value })
           }
           rows={3}
         />
-
+        <p className="text-xs text-gray-500 mt-1">
+          {topicData.description.length}/3000 characters
+        </p>
         <div className="w-full">
           <label className="text-sm font-medium text-gray-700 mb-1 block">
-            Thumbnail (optional)
+            Thumbnail
           </label>
 
           <div className="border border-gray-300 rounded-lg p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer transition">
             <input
               type="file"
+              required={!editingTopic}
               className="w-full text-sm text-gray-700
                  file:mr-4 file:py-2 file:px-4
                  file:rounded-md file:border-0

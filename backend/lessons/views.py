@@ -8,7 +8,7 @@ from django.http import HttpResponse
 from django.conf import settings
 from rest_framework.permissions import AllowAny
 from lessons import voicerss_tts
-
+import requests
 
 # =======================
 #  TOPIC VIEWSET
@@ -63,7 +63,7 @@ class GamificationProgressViewSet(viewsets.ModelViewSet):
 
 
 # =======================
-#  TEXT-TO-SPEECH ENDPOINT
+#  TEXT-TO-SPEECH (VoiceRSS)
 # =======================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -71,7 +71,7 @@ def tts_voice_rss(request):
     text = request.data.get("text")
     voice = request.data.get("voice", "Linda")
 
-    print("\n===== TTS REQUEST =====")
+    print("\n===== TTS REQUEST (VoiceRSS) =====")
     print("VOICE_RSS_API_KEY:", settings.VOICE_RSS_API_KEY)
     print("TEXT LENGTH:", len(text) if text else 0)
     print("VOICE:", voice)
@@ -110,4 +110,119 @@ def tts_voice_rss(request):
 
     except Exception as e:
         print("🔥 SERVER TTS EXCEPTION:", e)
+        return Response({"error": str(e)}, status=500)
+
+
+# =======================
+#  TEXT-TO-SPEECH (FineVoice)
+# =======================
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def tts_fine_voice(request):
+    try:
+        print("\n===== FINEVOICE REQUEST =====")
+        print("Incoming JSON:", request.data)
+
+        text = request.data.get("text")
+        voice = request.data.get("voice", "Madison")
+        emotion = request.data.get("emotion")
+
+        if not text:
+            return Response({"error": "Text is required"}, status=400)
+
+        url = "https://ttsapi.fineshare.com/v1/text-to-speech"
+        headers = {
+            "x-api-key": settings.FINE_VOICE_API_KEY,
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "voice": voice,
+            "speech": text,
+            "format": "mp3",
+            "noCdn": True,
+        }
+        if emotion:
+            payload["amotion"] = emotion
+
+        print("Payload:", payload)
+
+        # Step 1: request TTS job
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        print("API Status:", response.status_code)
+        print("API Response:", response.text)
+
+        if response.status_code != 200:
+            return Response({"error": "FineVoice API error"}, status=500)
+
+        data = response.json()
+
+        download_url = data.get("downloadUrl")
+        if not download_url:
+            return Response({"error": "FineVoice did not return audio URL."}, status=500)
+
+        # Step 2: download the MP3
+        file_response = requests.get(
+            download_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+
+        if file_response.status_code != 200:
+            print("🔥 AUDIO DOWNLOAD ERROR:", file_response.status_code, file_response.text)
+            return Response({"error": "Failed to download TTS audio"}, status=500)
+
+        audio_data = file_response.content
+
+        # Step 3: return MP3 directly
+        resp = HttpResponse(audio_data, content_type="audio/mpeg")
+        resp["Content-Disposition"] = "inline; filename=tts.mp3"
+        resp["Cache-Control"] = "no-store"
+
+        return resp
+
+    except Exception as e:
+        import traceback
+        print("🔥 SERVER ERROR (FineVoice TTS):", e)
+        print(traceback.format_exc())
+        return Response({"error": str(e)}, status=500)
+
+
+# =======================
+#  FINEVOICE VOICE LIST PROXY
+# =======================
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def tts_fine_voice_voices(request):
+    """
+    Proxy for FineVoice /v1/voices so the frontend never touches the external API/key directly.
+    Supports optional ?page=&limit= query params.
+    """
+    try:
+        page = request.query_params.get("page", 1)
+        limit = request.query_params.get("limit", 1000)  # grab a lot at once
+
+        url = "https://ttsapi.fineshare.com/v1/voices"
+        headers = {
+            "x-api-key": settings.FINE_VOICE_API_KEY,
+        }
+        params = {"page": page, "limit": limit}
+
+        print("\n===== FINEVOICE VOICES REQUEST =====")
+        print("Params:", params)
+
+        response = requests.get(url, headers=headers, params=params, timeout=15)
+        print("VOICES Status:", response.status_code)
+        print("VOICES Response:", response.text)
+
+        if response.status_code != 200:
+            return Response({"error": "Failed to fetch FineVoice voices"}, status=500)
+
+        data = response.json()
+        return Response(data, status=200)
+
+    except Exception as e:
+        import traceback
+        print("SERVER ERROR (FineVoice Voices):", e)
+        print(traceback.format_exc())
         return Response({"error": str(e)}, status=500)
