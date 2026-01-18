@@ -13,7 +13,7 @@ export default function FeaturesSection() {
     {
       icon: "🐰",
       title: "Video & Story Mode",
-      text: "Each topic includes an educational video or narrated story with friendly animal voices",
+      text: "Each topic includes an educational video or narrated story with friendly voices",
       color: "from-green-400 to-emerald-500",
       bg: "bg-green-100",
       border: "border-4 border-green-300",

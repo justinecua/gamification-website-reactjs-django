@@ -19,7 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("learn");
   const stars = useMemo(
     () => Math.min(progress, topics.length),
-    [progress, topics.length]
+    [progress, topics.length],
   );
 
   useEffect(() => {
