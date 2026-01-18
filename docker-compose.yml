@@ -1,50 +1,49 @@
----
-#------------------- development -------------------
-version: "3.8"
+# ---
+# #------------------- development -------------------
+# version: "3.8"
 
-services:
-  game_frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend
-    command: yarn dev
-    ports:
-      - "5174:5174"
-    volumes:
-      - ./frontend:/usr/src/app
-    networks:
-      - mynetwork
-    restart: always
-    env_file:
-      - ./frontend/.env
+# services:
+#   game_frontend:
+#     build:
+#       context: ./frontend
+#       dockerfile: Dockerfile
+#     container_name: frontend
+#     command: yarn dev
+#     ports:
+#       - "5174:5174"
+#     volumes:
+#       - ./frontend:/usr/src/app
+#     networks:
+#       - mynetwork
+#     restart: always
+#     env_file:
+#       - ./frontend/.env
 
-  game_api:
-    build: ./backend
-    container_name: game_api
-    working_dir: /game_api
-    command: >
-      sh -c "
-        python3 manage.py migrate &&
-        python3 manage.py runserver 0.0.0.0:${CONTAINER_PORT}
-      "
-    volumes:
-      - ./backend:/game_api
-      - ./backend/media:/media
-    ports:
-      - "${HOST_PORT}:${CONTAINER_PORT}"
-    networks:
-      - mynetwork
-    restart: always
-    environment:
-      - TZ=Asia/Manila
-    env_file:
-      - ./backend/.env
+#   game_api:
+#     build: ./backend
+#     container_name: game_api
+#     working_dir: /game_api
+#     command: >
+#       sh -c "
+#         python3 manage.py migrate &&
+#         python3 manage.py runserver 0.0.0.0:${CONTAINER_PORT}
+#       "
+#     volumes:
+#       - ./backend:/game_api
+#       - ./backend/media:/media
+#     ports:
+#       - "${HOST_PORT}:${CONTAINER_PORT}"
+#     networks:
+#       - mynetwork
+#     restart: always
+#     environment:
+#       - TZ=Asia/Manila
+#     env_file:
+#       - ./backend/.env
 
-networks:
-  mynetwork:
-    driver: bridge
-
+# networks:
+#   mynetwork:
+#     driver: bridge
 
 #------------------- production -------------------
 #removed container names to prevent conflicts with existing containers
@@ -55,8 +54,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-#     container_name: frontend
-#     command: yarn dev
+    #     container_name: frontend
+    #     command: yarn dev
     ports:
       - "5174:5174"
     volumes:
@@ -69,7 +68,7 @@ services:
 
   game_api:
     build: ./backend
-#   container_name: game_api
+    #   container_name: game_api
     working_dir: /game_api
     command: >
       sh -c "
