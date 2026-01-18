@@ -33,7 +33,7 @@ export default function TopicGridSection({ progress, handleOpen }) {
     },
     {
       icon: Book,
-      label: "📖 Stories – Talking animals read fun stories to you!",
+      label: "📖 Stories – Tslking Voices read fun stories to you!",
       bg: "bg-green-100",
       border: "border-4 border-green-400",
     },

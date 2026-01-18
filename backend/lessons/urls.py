@@ -1,22 +1,20 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     TopicViewSet,
     MediaViewSet,
     GamificationProgressViewSet,
-    tts_voice_rss,
-    tts_fine_voice,
-    tts_fine_voice_voices, 
+    tts_kokoro,
+    kokoro_voices,
 )
 
 router = DefaultRouter()
-router.register(r"topics", TopicViewSet)
-router.register(r"media", MediaViewSet)
-router.register(r"progress", GamificationProgressViewSet)
+router.register("topics", TopicViewSet)
+router.register("media", MediaViewSet)
+router.register("gamification", GamificationProgressViewSet)
 
 urlpatterns = [
-    *router.urls,
-    path("tts/", tts_voice_rss),
-    path("tts/finevoice/", tts_fine_voice),
-    path("tts/finevoice/voices/", tts_fine_voice_voices), 
+    path("", include(router.urls)),
+    path("tts/kokoro/", tts_kokoro),
+    path("tts/kokoro/voices/", kokoro_voices),
 ]
