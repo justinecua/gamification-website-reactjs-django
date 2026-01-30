@@ -93,6 +93,21 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
   }, [API_URL, mediaType]);
 
   /* ------------------------------
+   LOCK SCROLL WHILE LOADING
+------------------------------ */
+  useEffect(() => {
+    if (mediaType === "narrated" && isLoading) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mediaType, isLoading]);
+
+  /* ------------------------------
      FETCH KOKORO AUDIO
   ------------------------------ */
   async function fetchKokoroTTS(text, voiceId) {
@@ -275,7 +290,7 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
   ------------------------------ */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 rounded-2xl shadow-2xl overflow-hidden border-4 border-purple-400">
+      <div className="relative w-full max-w-4xl bg-gradient-to-br from-yellow-100 via-pink-100 to-purple-100 rounded-2xl shadow-2xl overflow-hidden border-4 border-purple-400">
         {/* HEADER - Rainbow Theme */}
         <div className="bg-gradient-to-r from-blue-500 via-green-500 to-purple-500 px-6 py-4 relative">
           <div className="flex items-center justify-between">
@@ -297,17 +312,45 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
             </button>
           </div>
         </div>
+        {/* GLOBAL LOADING OVERLAY – covers story + voices */}
+        {mediaType === "narrated" && isLoading && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-gradient-to-br from-yellow-200/90 via-green-200/90 to-blue-200/90 backdrop-blur-md">
+            <div className="text-center p-8 bg-gradient-to-br from-yellow-100 to-pink-100 rounded-3xl border-4 border-purple-300 shadow-2xl">
+              <div className="flex gap-3 mb-4 justify-center">
+                {["🎵", "🎶", "🎵"].map((note, i) => (
+                  <span
+                    key={i}
+                    className="text-4xl animate-bounce text-purple-600"
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  >
+                    {note}
+                  </span>
+                ))}
+              </div>
+              <p className="text-purple-800 font-extrabold text-xl">
+                Making your story! 🎨
+              </p>
+              <p className="text-sm text-purple-600 mt-2 opacity-80">
+                Please wait…
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* CONTENT AREA - Colorful Background */}
-        <div className="aspect-video bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100 p-6 overflow-y-auto relative">
+        <div
+          className={`aspect-video bg-gradient-to-br from-blue-100 via-yellow-100 to-pink-100 p-6 relative ${
+            isLoading ? "overflow-hidden" : "overflow-y-auto"
+          }`}
+        >
           {/* Decorative dots */}
           <div className="absolute top-2 left-2 w-3 h-3 bg-red-400 rounded-full opacity-50"></div>
           <div className="absolute top-10 right-4 w-4 h-4 bg-blue-400 rounded-full opacity-50"></div>
           <div className="absolute bottom-8 left-8 w-2 h-2 bg-green-400 rounded-full opacity-50"></div>
 
           {/* LOADING */}
-          {mediaType === "narrated" && isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-200/90 to-pink-200/90 backdrop-blur-sm z-10 rounded-lg">
+          {/* {mediaType === "narrated" && isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-r from-yellow-200 to-green-200 backdrop-blur-sm z-10 rounded-lg">
               <div className="text-center p-6 bg-gradient-to-br from-yellow-100 to-pink-100 rounded-2xl border-2 border-purple-300 shadow-lg">
                 <div className="flex gap-2 mb-4 justify-center">
                   {["🎵", "🎶", "🎵"].map((note, i) => (
@@ -325,7 +368,7 @@ export default function PlayerOverlay({ topic, onClose, onFinished }) {
                 </p>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Video or Text */}
           {hasMedia ? (
