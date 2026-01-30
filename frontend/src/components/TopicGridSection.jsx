@@ -1,4 +1,3 @@
-// src/components/TopicGridSection.jsx
 import React, { useEffect, useState } from "react";
 import { Video, Book } from "lucide-react";
 import TopicCard from "./TopicCard";
